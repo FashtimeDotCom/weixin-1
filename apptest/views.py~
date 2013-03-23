@@ -5,6 +5,7 @@ import hashlib, time, re
 from xml.etree import ElementTree as ET
 
 import WebCrawler_TiYu as wcr_ty
+from models import UserInfo
       
 def WeixinService(request):
     
@@ -37,8 +38,15 @@ def WeixinService(request):
                 if not content:
                     return HttpResponse(reply % (toUserName,fromUserName,postTime,'please enter something'))
                 if content == 'Hello2BizUser':
+		    usr_list=UserInfo.objects.all()
+		    wx_id_list=[]
+		    for item in usr_list:
+			wx_id_list.append(item.id_wx)
+		    
+		    if toUserName not in wx_id_list:
+			UserInfo.objects.create(id_wx=toUserName)
                     return HttpResponse(reply % (toUserName,fromUserName,postTime,'hello world!!'))
-                if content == '跑操':
+                if content.replace(' ','') == u'跑操':
                     info = '您总共跑操 %s 次' % wcr_ty.PaoCao(213110561,213110561)
                     return HttpResponse(reply % (toUserName,fromUserName,postTime,info))
                 else:
