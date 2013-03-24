@@ -6,9 +6,21 @@ from xml.etree import ElementTree as ET
 
 import WebCrawler_TiYu as wcr_ty
 from models import UserInfo
-      
+from tools import *
+import re
+
+
+'''
+
+
+
+'''
+
+
+
+
 def WeixinService(request):
-    
+
     if request.method == 'GET':
         try:
             token = 'liubing'
@@ -19,7 +31,6 @@ def WeixinService(request):
                 return HttpResponse(echostr)
         except:
             return HttpResponse('Invalid request')
-    
     if request.method == 'POST':
         try:
             reply = '''<xml>
@@ -35,20 +46,32 @@ def WeixinService(request):
                 fromUserName = received_xml.find('ToUserName').text
                 toUserName = received_xml.find('FromUserName').text
                 postTime = str(int(time.time()))
+                # ########## 输入为空
                 if not content:
                     return HttpResponse(reply % (toUserName,fromUserName,postTime,'please enter something'))
+                # ######### 用户关注后，微信系统自动传输的数据
                 if content == 'Hello2BizUser':
-                    usr_list=UserInfo.objects.all()
-                    wx_id_list=[]
-                    for item in usr_list:
-                    wx_id_list.append(item.id_wx)
-                    
-                    if toUserName not in wx_id_list:
-                    UserInfo.objects.create(id_wx=toUserName)
-                            return HttpResponse(reply % (toUserName,fromUserName,postTime,'hello world!!'))
+                    CheckIfUserExit(toUserName)
+                    return HttpResponse(reply % (toUserName,fromUserName,postTime,'hello world!!'))
+                # ########  用户更新的一卡通号和体育系密码
+                if re.match(r'^ykt[\d]{9}[\n]pcpwd[\S]+$',content):
+                    CheckIfUserExit(toUserName)
+                    UserInfo.objects.filter(id_wx=toUserName).update(id_ykt=content[3:12],pwd_tyx=content[18:])
+                    return HttpResponse(reply % (toUserName,fromUserName,postTime,'一卡通和跑操查询密码保存成功！您可以开始查询跑操了！'))
+                # ########  查询跑操
                 if content.replace(' ','') == u'跑操':
-                    info = '您总共跑操 %s 次' % wcr_ty.PaoCao(213110561,213110561)
+                    CheckIfUserExit(toUserName)
+
+                    if not CheckIfYKTExit(toUserName):
+                        return HttpResponse(reply % (toUserName,fromUserName,postTime,'首次使用，请输入您的一卡通号和跑操查询密码，格式如下：\nykt213109999\npcpwd000000'))
+
+                    if not CheckIfTYPwdExit(toUserName):
+                        return HttpResponse(reply % (toUserName,fromUserName,postTime,'首次使用，请输入您的跑操查询密码，格式如下：\n跑操密码000000'))
+
+                    info = '您总共跑操 %s 次' % wcr_ty.PaoCao(GetYKT(toUserName),GetTYPwd(toUserName))
                     return HttpResponse(reply % (toUserName,fromUserName,postTime,info))
+                # #######  
+                
                 else:
                     return HttpResponse(reply % (toUserName,fromUserName,postTime,'Sorry , being developing '))
             else:
@@ -56,7 +79,7 @@ def WeixinService(request):
         except Exception,e:
             return HttpResponse('the site file occur errors')
 
-    
+
 
 def hello(request):
     if request.method == 'GET':
@@ -70,7 +93,4 @@ def hello(request):
             return HttpResponse('your post data is empty')
 
 
-if __name__=="__main__":
-    s='%s'%wcr_ty.PaoCao(213110561,213110561)
-    print s
- 
+
